@@ -1,0 +1,153 @@
+---
+title: "Lab 5"
+author: "Griffin Shelor"
+date: "9/28/2023"
+output: html_document
+---
+
+## Question 1
+
+During an historic disease study a series of infections were recorded indicating their location. The data were recorded in OSGB 1936 / British National Grid -- United Kingdom Ordnance Survey (see - https://epsg.io/27700).  Start by loading the sf and terra packages. A) Import the "events.csv" data, B) create a spatial points object (of your choice) with the correct projection, and C) Plot the data.
+```{r 1 ABC}
+setwd("/Users/griffinshelor/Documents/Schoolwork/UNR/GEOG616/Labs/Lab5")
+library(pacman)
+pacman::p_load(tidyverse, sf, terra, tidyterra, splancs, spatstat, maptools)
+events <- read_csv("events.csv")
+events_sf <- st_as_sf(events, coords = c("X", "Y"), crs = 27700)
+plot(st_geometry(events_sf))
+```
+
+## Question 2 
+
+You have the suspicion that these data may not be completely spatially random (CSR)...(cue dramatic tunes). 
+
+A) Perform CSR tests using the G and K tests covered in class. B) Plot the envelopes and C) give statistical results using the mad.test(). D) Are the data CSR, Clustered, or Over-dispersed? How do you know?
+
+```{r 2A}
+set.seed(802)
+## converting to PPP
+events_ppp <- as.ppp(events_sf)
+events_envg <- envelope(events_ppp, fun = Gest, nsim = 100, savefuns = TRUE)
+events_envk <- envelope(events_ppp, fun = Kest, nsim = 100, savefuns = TRUE)
+```
+
+```{r 2B, C, D}
+## plotting envelopes
+plot(events_envg)
+plot(events_envk)
+## Statistical Results
+events_gtest <- mad.test(events_envg)
+events_gtest
+events_ktest <- mad.test(events_envk)
+events_ktest
+## The p-values indicate that the data are not completely spatially random. Based on the plots from the envelopes the data are clustered much more than we would expect if they were truly spatially random. The observed lines obviously deviate from the envelope around the red theoretical line.
+```
+
+
+## Question 3 
+
+Next we want to create a 2 dimensional spatial kernel of the data. Using the splancs package, estimate the bandwidth (h). A) Use the MSE and B) bw.diggle methods to find estimates for h, C) report them, and D) Plot your estimates of bandwidth for BOTH estimates relative to the MSE.
+
+```{r 3AB}
+mybb <- st_bbox(events_sf)
+mybb
+bndpts <- splancs::as.points(list(x = c(mybb[1], mybb[1], mybb[3], mybb[3]), y = c(mybb[2], mybb[4], mybb[4],mybb[2])))
+## estimating bandwidth
+events_mse <- mse2d(splancs::as.points(list(x=as.numeric(st_coordinates(events_sf)[,1]),y=as.numeric(st_coordinates(events_sf)[,2]))),bndpts, 1000, 1000)
+h_events <- events_mse$h[which.min(events_mse$mse)]
+```
+
+```{r 3BC}
+## estimating bandwidth with bw.diggle
+events_bwh <- bw.diggle(events_ppp)
+events_hbw <- as.numeric(events_bwh)
+## reporting bandwidth estimates
+h_events
+events_hbw
+```
+
+```{r 3D}
+## plotting MSE
+plot(events_mse$h, events_mse$mse, xlab="Bandwidth", ylab="MSE", type="l", main="Quartic kernel")
+i <- which.min(events_mse$mse)
+points(events_mse$h[i], events_mse$mse[i])
+abline(v= events_mse$h[i], lty=3, col='blue')
+## plotting BW Diggle
+plot(events_bwh, main="Gaussian kernel (BW)", xlab="Bandwidth", ylab="MSE")
+points(attr(events_bwh, "h")[attr(events_bwh, "iopt")], 0)
+```
+
+
+## Question 4
+
+A) Create a smooth Kernel using the spatstat density function and the BW Diggle bandwidth estimate. B) Plot your result. C) Compare your kernels to the default produced by ggplot's geom_density2d_filled function - what do you suspect is different? How does ggplot calculate its h?
+
+```{r 4A}
+kernel_BW <- density(events_ppp, events_hbw/2, kernel = "gaussian", dimyx = c(372, 1000))
+```
+
+```{r 4B, C, D}
+plot(kernel_BW)
+## geom_density2d_filled plot
+ggplot(events, aes(x = X, y = Y)) +
+  theme_void() +
+  geom_density2d_filled() + geom_point(cex=0.5)
+# ggplot() +
+#   theme_void() +
+#   geom_spatraster(kernel_BW_rast, mapping = aes()) +
+#   scale_fill_viridis_c(direction = -1) +
+#   geom_sf(events_sf, mapping = aes())
+
+## I suspect the method used to calculate the bandwidth is different. The ggplot2 default is to use the kde2d function from the {MASS} package which does not estimate point process intensity and defaults to a normal reference bandwidth. The bw.diggle() function uses cross validation to minimize mean-square error using the method of Berman and Diggle (1989). This bandwidth chosen is then used to estimate point process intensity using a density function.
+```
+
+## Question 5
+In the paper by Shiode et al. entitled "The mortality rates and the space-time patterns of John Snow’s cholera epidemic map": A) What were the two types of analyses they compared to further our understanding of the Cholera outbreaks in London in 1854? B) how do the kernel maps that you created in question 4 compare to those shown in figure 6 of their paper? C) Explore larger ranges of h by making more smooth kernels ranging from the bw method bandwidth above to 100 D) Plot your exploratory SGDFs. E) Which level of h would you choose to more closely match the kernel in the Shiode paper. F) How did they get their estimate of the smoothing parameter h?
+
+```{r 5A, B, C}
+## The two types of analyses they used were Kernel Density Estimation (KDE) and Network-based Scan Statistics (NetScan).
+
+## The kernel map that I created using the bw.diggle() method has higher density spots much more around the individual points themselves while the maps in Figure 6 have one area which is a hot spot for deaths that then has rings surrounding it which indicate a lower volume of deaths. The default ggplot2 map is much more similar to the maps in Figure 6 but its primary hot spot area stretches more in an ovular shape from northwest to southeast, instead of being similar to a circular shape like in the paper's maps.
+
+## Part C
+k1 <- density(events_ppp, events_hbw, dimyx = c(372, 1000))
+k2 <- density(events_ppp, events_hbw*2, dimyx = c(372, 1000))
+k3 <- density(events_ppp, 25, dimyx = c(372, 1000))
+k4 <- density(events_ppp, 50, dimyx = c(372, 1000))
+k5 <- density(events_ppp, 75, dimyx = c(372, 1000))
+k6 <- density(events_ppp, 100, dimyx = c(372, 1000))
+kernel_rasters <- c(rast(k1), rast(k2), rast(k3), rast(k4), rast(k5), rast(k6))
+names(kernel_rasters) <- c("k1", "k2", "k3", "k4", "k5", "k6")
+```
+
+## Plot density Kernel
+```{r 5D, E, F}
+# ks <- paste0('k',1:6)
+# cmg <- c(mget(ks))
+# all.kernels <- lapply(cmg, rast)
+# plot(kernel_rasters)
+ggplot() + 
+  theme_void() +
+  geom_spatraster(data = kernel_rasters, mapping = aes())+
+  scale_fill_viridis_c(option = 'inferno') +
+  geom_sf(data = events_sf, mapping = aes(),fill = NA, pch = 1 )+ ggtitle('Cholera Events', subtitle = 'Smoothing parameter Ranges') + 
+  facet_wrap(~lyr)
+ggplot() + 
+  theme_void() +
+  geom_spatraster(data = kernel_rasters, mapping = aes())+
+  scale_fill_viridis_c(option = 'inferno') +
+  # geom_sf(data = events_sf, mapping = aes(),fill = NA, pch = 1 )+ ggtitle('Cholera Events', subtitle = 'Smoothing parameter Ranges') + 
+  facet_wrap(~lyr)
+
+## The level of h that I would use would be between my k2 parameter (my bw.diggle smoothing parameter multiplied by 2) and 25 in order to more closely match the kernel from the Shiode paper.
+
+## To get their smoothing parameter, KDE used known values to produce a density surface across an area of interest. NetScan does not use circular windows like KDE does but instead adapts to local street networks to move through an area to detect point clusters.
+```
+
+## Question 6 Grad Students yes, Undergrad XC
+
+F) In the papers by Hemmson et al, and Gitzen & Millspaugh they discuss alternative methods of calculating h. What with respect to sample size did each find, and what were the relative strengths and drawbacks to their method of quantifying h?
+
+
+Answer: Hemmson et al. used  least squares cross-validation (LSCV) and found that it could consistently produce values of h at lower sample sizes below 100 locations, but this was not stable since they also found a high amount of variability within sample sizes below 100. They found that stability of LSCV estimates could potentially improve with sample sizes above 500 locations, but that this was achieved using a substitution of h_lscv with h_ref and that the relationship between these two values was not consistent. Using a larger sample size can also increase the risk of over-representing more favored areas of a home range, and thus not include areas which may also be in that home range but aren't visited as frequently. 
+Gitzen and Millspaugh tested different LSCV options in their study and found that sample size was more influential on kernel performance than which LSCV option was chosen. Some strengths that they found with LSCV included lower bias and the potential for higher performance when a distribution has sharp peaks. However, LSCV can also be likely to fail if working with point datasets that are highly clustered into clumps. Similar to the Hemmson et al. paper, Gitzen and Millspaugh also found that LSCV could have high amounts of variability.
