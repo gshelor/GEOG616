@@ -1,0 +1,39 @@
+as_coordinates          Get cell number, row and column from a
+                        SpatRaster
+as_spatraster           Coerce a data frame to SpatRaster
+as_tibble               Coerce a Spat* object to data frames
+autoplot                Create a complete ggplot for SpatRasters
+compare_spatrasters     Compare attributes of two SpatRasters
+cross_blended_hypsometric_tints_db
+                        Cross-blended Hypsometric Tints
+drop_na                 Drop attributes of SpatVector objects
+                        containing missing values
+filter                  Subset cells/geometries of Spat* objects
+geom_spat_contour       Plot SpatRaster contours
+geom_spatraster         Visualise SpatRaster objects
+geom_spatraster_rgb     Visualise SpatRaster objects as images
+ggspatvector            Visualise SpatVector objects
+hypsometric_tints_db    Hypsometric palettes database
+is_regular_grid         Check if x and y positions conforms a regular
+                        grid
+mutate                  Create, modify, and delete cell
+                        values/layers/attributes of Spat* objects
+pull                    Extract a single layer/attribute
+pull_crs                Extract CRS on WKT format
+relocate                Change layer/attribute order
+rename                  Rename layers/attributes
+replace_na              Replace NAs with specified values
+scale_fill_cross_blended
+                        Cross blended Hypsometric Tints fill scales
+scale_fill_hypso        Gradient fill scales for representing
+                        hypsometry and bathymetry
+scale_fill_terrain      Terrain colour fill scales from grDevices
+scale_fill_whitebox     Gradient fill scales from WhiteboxTools color
+                        schemes
+scale_fill_wiki         Gradient fill scales from Wikipedia color
+                        schemes
+select                  Subset layers/attributes of Spat* objects
+slice                   Subset cells/rows/columns/geometries using
+                        their positions
+volcano2                Updated Topographic Information on Auckland's
+                        Maungawhau Volcano
