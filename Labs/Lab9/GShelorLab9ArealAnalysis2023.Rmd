@@ -1,0 +1,185 @@
+---
+title: "Lab 9"
+author: "Griffin Shelor"
+date: "11/02/2023"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+setwd("/Users/griffinshelor/Documents/Schoolwork/UNR/GEOG616/Labs/Lab9")
+knitr::opts_chunk$set(echo = TRUE)
+# library(geoR)
+library(terra)
+library(maptools)
+library(RColorBrewer)
+library(spdep)
+library(spatialreg)
+library(sf)
+library(tidyverse)
+library(lwgeom)
+```
+
+# Areal Analysis Problem
+
+The city of Chicago posts publicly available data on crime within the area as point based data. They also post data on the precincts and wards located within the city in which the crime data are reported. However, the precincts for the crime data are not reported, and so the common level of organization between the two data sets is "Ward". Census data are also collected, where many demographics are reported, including Median Household income, which is often used as a predictor for crime rates.
+
+Data sources are here https://data.cityofchicago.org/
+
+Your job is to analyze the crimes reported as "burglaries" as a function of the Median Household Income aggregated by Ward.
+
+## Question 1. 5pts
+
+From the Chicago data folder, read in the census income data, and the precinct data, and aggregate the income data up to wards such that you have the area averaged median household income by ward. 
+
+```{r q1}
+income_sf <- read_sf("Chicago/Income.gpkg")
+precincts_wards_sf <- read_sf("Chicago/Precincts/PecinctsAndWards.shp")
+precincts_wards_sf <- st_transform(precincts_wards_sf, crs(income_sf))
+plot(st_geometry(income_sf))
+plot(st_geometry(precincts_wards_sf))
+## Aggregating income data
+precincts_wards_sf_2 <- summarise(group_by(precincts_wards_sf, ward))
+joined_income_wards_sf <- sf::st_interpolate_aw(income_sf[,'MedHshldIncome'], precincts_wards_sf_2[,'ward'], extensive = F)
+joined_income_wards_sf$Ward <- seq(1:50)
+# plot(joined_income_wards_sf)
+```
+
+## Question 2. 5pts
+Now that you have the income data aggregated by ward read in the 2019 crime data calculate the number of burglaries per ward. Make a scatter plot of the number of burglaries vs Median household income. 
+```{r Q2}
+crime <- read_csv("Chicago/Crimes_-_2019.csv") |>
+  drop_na()
+crime_sf <- st_as_sf(crime, coords = c("Longitude", "Latitude"), crs = crs(income_sf))
+
+# plot(st_geometry(joined_income_wards_sf))
+# plot(crime_sf, add = TRUE)
+
+joined_income_wards_sf$burglaries <- as.numeric(table(crime_sf[crime_sf$`Primary Type` == "BURGLARY",]$Ward))
+joined_income_wards_sf <- joined_income_wards_sf |>
+  drop_na()
+
+plot(joined_income_wards_sf$MedHshldIncome, joined_income_wards_sf$burglaries)
+```
+
+
+## Question 3. -3pts
+
+From the plot you made in the previous question it appears that there may be a relationship between the number of burglaries and household income. a) Create a non spatial linear model of these two variables and summarize the linear model. b) Is there a significant relationship between these two variables? c) Explain how you know.
+
+```{r Q3}
+burglaries_income_lm <- lm(burglaries ~ MedHshldIncome, data = joined_income_wards_sf)
+summary(burglaries_income_lm)
+
+## There is a statistically significant relationship between median household income and the number of burglaries in a ward. We can tell because the p-value for the MedHshldIncome coefficient is well below 0.05. This indicates a reasonably high level of significance.
+```
+
+
+## Question 4. -3pts
+Since you are analyzing aggregate data you are concerned that there may be spatial autocorrelation to be concerned with in your analysis. a) Create a neighborhood object allowing for up to 6 nearest neighbors, and b) plot your neighbor object over the wars polygon that you created in Question 2. c) Assign weights to your neighborhood object using three methods 'W', 'B', and 'B' with idw (note use 1/(x*100) as your idw function).
+
+
+```{r q4a}
+set.seed(802)
+burglary_wards_neighbors <- knn2nb(knearneigh(st_centroid(joined_income_wards_sf), k = 6))
+```
+
+
+```{r q4b}
+centercoords <- st_coordinates(st_centroid(joined_income_wards_sf))
+plot(st_geometry(joined_income_wards_sf))
+plot(burglary_wards_neighbors, centercoords, add = T)
+```
+
+```{r q4c}
+dsts <- nbdists(burglary_wards_neighbors, st_geometry(st_centroid(joined_income_wards_sf)))
+idw <- lapply(dsts, function(x) 1/(x*100))
+burglary_lw_B <- nb2listw(burglary_wards_neighbors, style = "B")
+burglary_lw_idwB <- nb2listw(burglary_wards_neighbors, glist = idw, style = "B")
+burglary_lw_W <- nb2listw(burglary_wards_neighbors, style = "W")
+#NY8_lw_idwB <- nb2listw(NY_nb, glist = idw, style = "B")
+summary(unlist(burglary_lw_idwB$weights))
+summary(unlist(burglary_lw_B$weights))
+summary(unlist(burglary_lw_W$weights))
+
+```
+
+
+## Question 5. -4pts
+
+Test whether your data are spatially autocorrelated using Moran's I test. Show your work. a) Are they spatially autocorrelated? b) How do you know? c) Do any of the weighting schemes correct for this?
+
+
+```{r Q5}
+# moran.test(joined_income_wards_sf$burglaries, listw = burglary_lw_W)
+# moran.test(joined_income_wards_sf$burglaries, listw = burglary_lw_idwB)
+# moran.test(joined_income_wards_sf$burglaries, listw = burglary_lw_B)
+mantel_idwB <- sp.mantel.mc(joined_income_wards_sf$burglaries, type = 'moran', listw = burglary_lw_idwB, nsim=100)
+mantel_B <- sp.mantel.mc(joined_income_wards_sf$burglaries, type = 'moran', listw = burglary_lw_B, nsim=100)
+mantel_W <- sp.mantel.mc(joined_income_wards_sf$burglaries, type = 'moran', listw = burglary_lw_W, nsim=100)
+mantel_idwB
+mantel_B
+mantel_W
+
+## The data do appear to be spatially autocorrelated. This is indicated by the low p-values, which are below 0.05 for all of the moran tests. The weighting schemes do not correct for this, since Moran's I cannot always be trusted if there is a hidden confounding variable which may explain the appearance of spatial autocorrelation.
+```
+
+
+## Question 6. -7pts
+
+Create spatial linear models of your data (all three weighting schemes using both the a) SAR and b) CAR modeling families. c) Do all of the models show the same general trend? d) what is it? e) use AIC to find the best performing model. Which model is it? f) create a spatial plot of your best model with the predicted burglaries given household income symbolized across your ward polygons.
+
+```{r q6a}
+## SAR models
+burglary_splm_idwB_SAR <- spautolm(burglaries ~ MedHshldIncome, data=joined_income_wards_sf, listw=burglary_lw_idwB)
+summary(burglary_splm_idwB_SAR)
+burglary_splm_B_SAR <- spautolm(burglaries ~ MedHshldIncome, data=joined_income_wards_sf, listw=burglary_lw_B)
+summary(burglary_splm_B_SAR)
+burglary_splm_W_SAR <- spautolm(burglaries ~ MedHshldIncome, data=joined_income_wards_sf, listw=burglary_lw_W)
+summary(burglary_splm_W_SAR)
+```
+
+
+```{r q6b}
+## CAR Models
+burglary_splm_idwB_CAR <- spautolm(burglaries ~ MedHshldIncome, data=joined_income_wards_sf, family = "CAR", listw=burglary_lw_idwB)
+summary(burglary_splm_idwB_CAR)
+burglary_splm_B_CAR <- spautolm(burglaries ~ MedHshldIncome, data=joined_income_wards_sf, family = "CAR", listw=burglary_lw_B)
+summary(burglary_splm_B_CAR)
+burglary_splm_W_CAR <- spautolm(burglaries ~ MedHshldIncome, data=joined_income_wards_sf, family = "CAR", listw=burglary_lw_W)
+summary(burglary_splm_W_CAR)
+```
+
+
+
+
+```{r q6c,d,e}
+## Yes, all of the models do show the same general trend, with the p-values all displaying significance and the parameter estimate for median household income being negative and relatively similar values for each model. Essentially, as median household income increased, burglaries in a ward decreases.
+
+## AIC
+burglary_mods <- ls(pattern='burglary_splm_')
+myaic <- data.frame(model=NA, AIC=0, DAIC=0, LambdaP=0)
+for(i in 1:length(burglary_mods)){
+tmp <- summary(get(burglary_mods[i]))
+myaic[i,1] <- burglary_mods[i]
+myaic[i,2] <- AIC(get(burglary_mods[i]))
+myaic[i,4] <- tmp$LR1$p.value[1][[1]]
+}
+myaic$DAIC <- myaic$AIC - min(myaic$AIC)
+myaic <- myaic[order( myaic$AIC),]
+myaic
+
+## My best model is the SAR model which included weights which included IDW in the weight assigning process. 
+```
+## Plotting our trend
+
+```{r}
+joined_income_wards_sf$SAR_IDW_fitted <- burglary_splm_idwB_SAR$fit$fitted.values
+burglary_trend_plot <- ggplot() +
+  theme_minimal() +
+  geom_sf(joined_income_wards_sf, mapping = aes(fill = SAR_IDW_fitted)) +
+  scale_fill_viridis_c() +
+  ggtitle('SAR IDW Weighted Model') +
+  guides(fill = guide_colourbar(title = 'Burglaries'))
+burglary_trend_plot
+```
+

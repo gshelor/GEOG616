@@ -133,7 +133,7 @@ soil_ok_plot
 soil_uk_plot
 # plot(soil_uk['var1.pred'])
 
-## Yes, the addition of slope did change the prediction of where soils might be most impacted by off trail travel. The western and northern edges of the area are described as more likely to be impacted by off trail travel once I added the covariate of slope. The southeast corner remained relatively unlikely to be impacted by off trail travel, as did other areas with lower likelihoods of impact nearer to the center of the study area. 
+## Yes, the addition of slope did change the prediction of where soils might be most impacted by off trail travel. The western and northern edges of the area are described as more likely to be impacted by off trail travel once I added the covariate of slope. The southeast corner remained relatively unlikely to be impacted by off trail travel, as did other areas with lower likelihoods of impact nearer to the center of the study area.
 ```
 
 ## Question 6.
