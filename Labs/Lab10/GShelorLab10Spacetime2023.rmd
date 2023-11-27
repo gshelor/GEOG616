@@ -129,7 +129,7 @@ class(DE_pred)
 summary(DE_pred)
 plot(DE_pred)
 
-plot(DE_pred@sp)
+# plot(DE_pred@sp)
 
 # julyTDP_stdf_v2 <- as(julyTDP_stdf[, -14], "STIDF")# convert to STIDF - omitting one problematic column
 # julyTDP_stdf_v2 <- subset(julyTDP_stdf_v2, !is.na(julyTDP_stdf_v2$z))
