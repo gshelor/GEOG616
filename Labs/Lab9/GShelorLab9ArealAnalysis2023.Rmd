@@ -75,7 +75,7 @@ summary(burglaries_income_lm)
 
 
 ## Question 4. -3pts
-Since you are analyzing aggregate data you are concerned that there may be spatial autocorrelation to be concerned with in your analysis. a) Create a neighborhood object allowing for up to 6 nearest neighbors, and b) plot your neighbor object over the wars polygon that you created in Question 2. c) Assign weights to your neighborhood object using three methods 'W', 'B', and 'B' with idw (note use 1/(x*100) as your idw function).
+Since you are analyzing aggregate data you are concerned that there may be spatial autocorrelation to be concerned with in your analysis. a) Create a neighborhood object allowing for up to 6 nearest neighbors, and b) plot your neighbor object over the wards polygon that you created in Question 2. c) Assign weights to your neighborhood object using three methods 'W', 'B', and 'B' with idw (note use 1/(x*100) as your idw function).
 
 
 ```{r q4a}
@@ -96,7 +96,6 @@ idw <- lapply(dsts, function(x) 1/(x*100))
 burglary_lw_B <- nb2listw(burglary_wards_neighbors, style = "B")
 burglary_lw_idwB <- nb2listw(burglary_wards_neighbors, glist = idw, style = "B")
 burglary_lw_W <- nb2listw(burglary_wards_neighbors, style = "W")
-#NY8_lw_idwB <- nb2listw(NY_nb, glist = idw, style = "B")
 summary(unlist(burglary_lw_idwB$weights))
 summary(unlist(burglary_lw_B$weights))
 summary(unlist(burglary_lw_W$weights))

@@ -87,11 +87,16 @@ kernel_BW <- density(events_ppp, events_hbw/2, kernel = "gaussian", dimyx = c(37
 ```
 
 ```{r 4B, C, D}
-plot(kernel_BW)
+ggplot() +
+  theme_void() +
+  geom_spatraster(data = kernel_BW_rast) +
+  scale_fill_viridis_c(direction = 1) +
+  geom_sf(data = events_sf)
 ## geom_density2d_filled plot
 ggplot(events, aes(x = X, y = Y)) +
   theme_void() +
-  geom_density2d_filled() + geom_point(cex=0.5)
+  geom_density2d_filled() + 
+  geom_point(cex=0.5)
 # ggplot() +
 #   theme_void() +
 #   geom_spatraster(kernel_BW_rast, mapping = aes()) +

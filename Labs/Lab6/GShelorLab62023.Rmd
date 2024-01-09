@@ -116,7 +116,7 @@ A)  Load the DEM for the great basin (GBMiniDem2.tif) and Weather data describin
 ## reading in DEM
 dem <- rast("Lab6_data/GBMiniDem2.tif")
 dem <- terra::project(dem, "epsg:6340")
-dem_vect <- as.points(dem)
+dem_vect <- terra::as.points(dem)
 dem_sf <- st_as_sf(dem_vect)
 # dem_poly <- as.polygons(dem)
 # dem_poly <- aggregate(dem_poly)

@@ -1,0 +1,115 @@
+---
+title: "Lab 4 Modeling With Rasters"
+author: "Griffin Shelor"
+date: Sept 21, 2023
+output: html_document
+---
+
+```{r setup, include=FALSE}
+setwd("/Users/griffinshelor/Documents/Schoolwork/UNR/GEOG616/Labs/Lab4")
+knitr::opts_chunk$set(echo = TRUE, fig.height = 6)
+## load needed libraries here
+# install.packages("pacman")
+pacman::p_load(tidyverse, terra, sf, RColorBrewer, tidyterra, viridis)
+```
+The USGS conducted extensive surveys of the Gold butte Area in southern Nevada. These surveys were conducted to understand the distribution patterns of many species in the area, and the relative risk of wildfire in the area.
+
+## Question 1
+a) Load the Gold Butte Boundary (GB_Bdry from the Lab 4 Folder) and the "Gold Butte observed species" files. b) Plot the observed species and the Gold Butte boundary c) symbolizing each species (in the ObservedSp column) with different colored filled triangles using one of the color palette packages that allow for enough unique colors.
+
+
+```{r Q1a}
+GB_Boundary <- vect("GoldButte/GB_Bdry.shp")
+crs(GB_Boundary, describe = T)
+GB_Species <- vect("GoldButte/ObservedSpecies_Gold_ButteL3.shp")
+crs(GB_Species, describe = T)
+```
+
+```{r Q1bc}
+GoldButteSpeciesMap <- ggplot() +
+  theme_void() +
+  geom_spatvector(data = GB_Boundary) +
+  geom_spatvector(data = GB_Species, mapping = aes(colour = GB_Species$ObservedSp), shape = 17) +
+  scale_color_viridis(discrete = TRUE, name = "Species")
+GoldButteSpeciesMap
+```
+
+
+## Question 2
+a) Subset the observation data to create a dataset containing only the Las Vegas Bearpoppy. b) Plot Las Vegas Bearpoppy occurrence on top of the distance to roads layer (from the D2Roads.tif file), C) with the plot cropped to the gold butte boundary.
+
+
+```{r Q2abc}
+LV_Bearpoppy <- subset(GB_Species, GB_Species$ObservedSp == "Arca - Las Vegas Bearpoppy")
+length(LV_Bearpoppy$ObservedSp)
+D2Rds <- rast("GoldButte/D2Roads.tif")
+D2Rds_crop <- crop(D2Rds, GB_Boundary)
+D2Rds_plot <- ggplot() +
+  theme_void() +
+  geom_spatraster(data = D2Rds_crop) +
+  scale_fill_whitebox_c(palette = "muted", name = "Distance to Roads") +
+  geom_spatvector(data = GB_Species, mapping = aes(colour = GB_Species$ObservedSp), shape = 17) +
+  scale_color_viridis(discrete = TRUE, name = "Species", option = "turbo") +
+  ggtitle("Las Vegas Bearpoppy Occurrence \n and Distance to Roads")
+D2Rds_plot
+```
+##  Question 3
+Using the observation data for the Bearpoppy from question 2. A) Model the Number of Bearpoppy's observed at each of the points (Nobs) as a function of the distance to roads using a glm. B) Interpreting this model output is there a signification association of Bearpoppy with roads?
+
+```{r Q3a}
+newLVB_pts <- terra::extract(D2Rds_crop, LV_Bearpoppy, bind =T)
+LVB_glm <- glm(Nobs ~ D2Roads, data = newLVB_pts)
+```
+
+```{r Q3b}
+summary(LVB_glm)
+plot(LVB_glm)
+## There is a highly significant association of Bearpoppy with roads according to this model.
+```
+
+
+## Question 4
+a) Log transform the number of poppies observed and b) run a new GLM using this new logged column versus Distance to Roads. c) Is this model a better fit? Why or Why Not? d) Are there any concerns with the data from your examination of the model outputs?
+
+```{r Q4ab}
+newLVB_pts$LogNobs <- log(newLVB_pts$Nobs + 0.0001)
+summary(newLVB_pts)
+LVB_logNobs_glm <- glm(LogNobs ~ D2Roads, data = newLVB_pts)
+```
+
+```{r Q4cd}
+summary(LVB_logNobs_glm)
+plot(LVB_logNobs_glm)
+## The model using logged observations appears to be better since the AIC value is lower. Additionally, the p-values for the coefficients are similar and the Q-Q residual plot follows the straight line more closely. The other plots are similar enough so that one model does not stand out. Where there is a difference, the model using logged observations appears to better fit the data. 
+## There are still some concerns, as the linearity of the relationship between Distance to Roads and the Log-transformed Observations is difficult to evaluate given the multiple points which share predicted values but have different residuals. In order to be more confident in our data, we would want to see fewer points clumped towards one end of the Residuals vs Fitted plot.
+```
+
+
+
+
+```{r "AIC just for fun"}
+AIC(LVB_glm)
+AIC(LVB_logNobs_glm)
+```
+
+## Question 5
+a) predict your best glm from question 4 to create a raster of your model. b) Plot your model to cropped to the boundary layer, c) with a color ramp of 10 color increments.
+
+
+```{r Q5abcd}
+ObsRaster <- predict(D2Rds_crop, LVB_logNobs_glm)
+# plot(ObsRaster)
+## changing name
+LogBearpoppy_plot <- ggplot() +
+  theme_void() +
+  ggtitle("Predicted Observations of Las Vegas Bearpoppy") +
+  geom_spatraster(data = ObsRaster) + 
+  scale_fill_whitebox_c(palette = "muted", n = 10, name = "Predicted Observations", na.value = "white")
+LogBearpoppy_plot
+```
+
+
+## Question 6 616 Yes, 416 XC
+Read the paper by Van Linn et al. 2016. What was being modeled by these researchers? How did the authors reduce the spatial bias in the data due to the limited locations in which fire occurred? How did the authors validate their model? 
+
+Answer: The researchers are modeling fuel loads first, then using their fuel loads model in addition to other sources of input data to model fire risk. The authors attempted to reduce spatial bias in the data by using 2005 as a base year for the fire risk model, since using other years would potentially lead to a fire risk model that underestimated the potential of fire occurrence. The researchers also attempted to reduce spatial bias in the data by randomly selecting 5000 cells in order to avoid overfitting. This way they could ensure they were modelling fire risk as accurately as possible throughout the whole study area, rather than just creating a map which matched fire occurrence in 2005 but was not useful for any other years. The authors validated their fire risk model by applying the fire risk model to a different area not part of the main study site that had similar environmental characteristics in order to evaluate model performance and ensure the model was not overly specific to just the Gold Butte study area. 
