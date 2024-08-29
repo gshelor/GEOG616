@@ -1,0 +1,246 @@
+---
+title: "GEOG 616 Lab 7"
+author: "Griffin Shelor"
+format: html
+---
+
+```{r setup, include=FALSE}
+setwd("/Users/griffinshelor/Documents/Schoolwork/UNR/GEOG616/Labs/Lab7")
+knitr::opts_chunk$set(echo = TRUE)
+library(sf)
+library(terra)
+library(maptools)
+library(rgeos)
+library(raster)
+library(spatstat.model)
+library(gstat)
+library(cluster)
+library(factoextra)
+library(ClustGeo)
+```
+
+
+## Question 1. 
+
+A survey was conducted searching an area for wildlife mortalities. The data are contained in the file "ClusterData2.gpkg". Looking at the data, the locations appear to be arranged in three clusters. Using the k means algorithm from the built in 'stats' package A) evaluate a range of clusters from 1:10 on your data set without scaling the coordinates. B) What appears to be an appropriate number of clusters for the data with respect to clustering on the coordinates? Why? C) plot the data symbolized by the new clusters that you identified with K-means. 
+
+```{r q1}
+## reading data
+clusterdata <- read_sf("ClusterData2.gpkg")
+set.seed(802)
+nkm <- data.frame(number = numeric(10), sse = numeric(10)) # empty df to hold results
+for(j in 1:10){ ## loop through each cluster number
+  nkm$number[j] <- j ## cluster number
+  nkm$sse[j] <- kmeans(st_coordinates(clusterdata),centers=j)$tot.withinss ## record error
+}
+plot(nkm$number, nkm$sse, xlab = 'Number of Clusters', ylab = 'SSE', main = 'K-Means Error Evaluation Plot')
+lines(nkm$number, nkm$sse)
+```
+An appropriate number of clusters for the data appears to be 3. This is because there is a significant reduction in how much error is lost after we use 3 clusters. Most of the clusters greater than 3 have relatively similar levels of error.
+
+```{r q1}
+## creating and plotting clusters
+clusterk1 <- kmeans(st_coordinates(clusterdata),centers=1)
+clusterk2 <- kmeans(st_coordinates(clusterdata),centers=2)
+clusterk3 <- kmeans(st_coordinates(clusterdata),centers=3)
+clusterk4 <- kmeans(st_coordinates(clusterdata),centers=4)
+clusterk5 <- kmeans(st_coordinates(clusterdata),centers=5)
+clusterk6 <- kmeans(st_coordinates(clusterdata),centers=6)
+clusterk7 <- kmeans(st_coordinates(clusterdata),centers=7)
+clusterk8 <- kmeans(st_coordinates(clusterdata),centers=8)
+clusterk9 <- kmeans(st_coordinates(clusterdata),centers=9)
+clusterk10 <- kmeans(st_coordinates(clusterdata),centers=10)
+
+par(mfrow=c(2,5))
+plot(st_geometry(clusterdata), col=factor(clusterk1$cluster), main = 'k1')
+plot(st_geometry(clusterdata), col=factor(clusterk2$cluster), main = 'k2')
+plot(st_geometry(clusterdata), col=factor(clusterk3$cluster), main = 'k3')
+plot(st_geometry(clusterdata), col=factor(clusterk4$cluster), main = 'k4')
+plot(st_geometry(clusterdata), col=factor(clusterk5$cluster), main = 'k5')
+plot(st_geometry(clusterdata), col=factor(clusterk6$cluster), main = 'k6')
+plot(st_geometry(clusterdata), col=factor(clusterk7$cluster), main = 'k7')
+plot(st_geometry(clusterdata), col=factor(clusterk8$cluster), main = 'k8')
+plot(st_geometry(clusterdata), col=factor(clusterk9$cluster), main = 'k9')
+plot(st_geometry(clusterdata), col=factor(clusterk10$cluster), main = 'k10')
+```
+
+Answer - There appears to be a sharp reduction in the error improvement at k=3
+
+## Question 2
+A) Add the "sex" column to your clustering. Does this increase the number of potential clusters identified? B) Evaluate clusters on the coordinates and sex columns. C) How many clusters look reasonable now? D) Plot your result.
+
+```{r q2a-c}
+set.seed(802)
+## Evaluating Clusters
+nkm_sex <- data.frame(number = numeric(10), sse = numeric(10)) # empty df to hold results
+for(j in 1:10){ ## loop through each cluster number
+  nkm_sex$number[j] <- j ## cluster number
+  nkm_sex$sse[j] <- kmeans(cbind(st_coordinates(clusterdata),as.factor(clusterdata$sex)),centers=j)$tot.withinss ## record error
+}
+plot(nkm_sex$number, nkm_sex$sse, xlab = 'Number of Clusters', ylab = 'SSE', main = 'K-Means Error Evaluation Plot')
+lines(nkm_sex$number, nkm_sex$sse)
+```
+Based on this plot, the appropriate number of clusters is still 3. The error improvement is significantly reduced after we use clusters greater than 3.
+
+```{r q2d}
+## creating and plotting clusters
+clusterk1_sex <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=1)
+clusterk2_sex <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=2)
+clusterk3_sex <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=3)
+clusterk4_sex <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=4)
+clusterk5_sex <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=5)
+clusterk6_sex <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=6)
+clusterk7_sex <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=7)
+clusterk8_sex <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=8)
+clusterk9_sex <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=9)
+clusterk10_sex <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=10)
+
+par(mfrow=c(2,5))
+plot(st_geometry(clusterdata), col=factor(clusterk1_sex$cluster), main = 'k1')
+plot(st_geometry(clusterdata), col=factor(clusterk2_sex$cluster), main = 'k2')
+plot(st_geometry(clusterdata), col=factor(clusterk3_sex$cluster), main = 'k3')
+plot(st_geometry(clusterdata), col=factor(clusterk4_sex$cluster), main = 'k4')
+plot(st_geometry(clusterdata), col=factor(clusterk5_sex$cluster), main = 'k5')
+plot(st_geometry(clusterdata), col=factor(clusterk6_sex$cluster), main = 'k6')
+plot(st_geometry(clusterdata), col=factor(clusterk7_sex$cluster), main = 'k7')
+plot(st_geometry(clusterdata), col=factor(clusterk8_sex$cluster), main = 'k8')
+plot(st_geometry(clusterdata), col=factor(clusterk9_sex$cluster), main = 'k9')
+plot(st_geometry(clusterdata), col=factor(clusterk10_sex$cluster), main = 'k10')
+```
+
+
+## Question 3
+A) Scale the data based on the coordinates and run your cluster analysis based on the spatial coordinates and Sex again. B) Plot your error test and your C) resulting clusters assigning a different color for each cluster. D) How many clusters look appropriate now? 
+
+
+```{r q3}
+set.seed(802)
+## Evaluating Clusters
+nkm_scale <- data.frame(number = numeric(10), sse = numeric(10)) # empty df to hold results
+for(j in 1:10){ ## loop through each cluster number
+  nkm_scale$number[j] <- j ## cluster number
+  nkm_scale$sse[j] <- kmeans(scale(cbind(st_coordinates(clusterdata),as.factor(clusterdata$sex))),centers=j)$tot.withinss ## record error
+}
+```
+
+```{r 3b}
+plot(nkm_scale$number, nkm_scale$sse, xlab = 'Number of Clusters', ylab = 'SSE', main = 'K-Means Error Evaluation Plot')
+lines(nkm_scale$number, nkm_scale$sse)
+
+set.seed(802)
+## creating and plotting clusters
+clusterk1_scale <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=1)
+clusterk2_scale <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=2)
+clusterk3_scale <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=3)
+clusterk4_scale <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=4)
+clusterk5_scale <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=5)
+clusterk6_scale <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=6)
+clusterk7_scale <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=7)
+clusterk8_scale <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=8)
+clusterk9_scale <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=9)
+clusterk10_scale <- kmeans(cbind(st_coordinates(clusterdata), as.factor(clusterdata$sex)),centers=10)
+
+par(mfrow=c(2,5))
+plot(st_geometry(clusterdata), col=factor(clusterk1_scale$cluster), main = 'k1')
+plot(st_geometry(clusterdata), col=factor(clusterk2_scale$cluster), main = 'k2')
+plot(st_geometry(clusterdata), col=factor(clusterk3_scale$cluster), main = 'k3')
+plot(st_geometry(clusterdata), col=factor(clusterk4_scale$cluster), main = 'k4')
+plot(st_geometry(clusterdata), col=factor(clusterk5_scale$cluster), main = 'k5')
+plot(st_geometry(clusterdata), col=factor(clusterk6_scale$cluster), main = 'k6')
+plot(st_geometry(clusterdata), col=factor(clusterk7_scale$cluster), main = 'k7')
+plot(st_geometry(clusterdata), col=factor(clusterk8_scale$cluster), main = 'k8')
+plot(st_geometry(clusterdata), col=factor(clusterk9_scale$cluster), main = 'k9')
+plot(st_geometry(clusterdata), col=factor(clusterk10_scale$cluster), main = 'k10')
+```
+After scaling, the appropriate number of clusters appears to be 7, as it is the last significant dropoff in error depicted in the chart. 5 or 6 could also be an appropriate numbers of clusters based on their relatively low error rates.
+
+
+
+
+## Question 4
+A) Use a hierarchical clustering approach to examine clustering in the x, y coordinates and the elevation column in your data B) plot the dendrogram.  C) evaluate the number of clusters that may be appropriate D) plot the clustered data using "fviz_cluster" E) assign your selected clusters back to your original dataset and summarize the data.
+
+```{r q4 a-E}
+## computing dissimilarity matrix
+clusterdata$elev_m <- as.numeric(clusterdata$elev_m)
+scale_clusterdata_dist <- dist(scale(cbind(st_coordinates(clusterdata), clusterdata$elev_m)), method = "euclidean")
+
+# Hierarchical clustering using single linkage
+hcluster_sing <- hclust(scale_clusterdata_dist, method = "single" )
+# Hierarchical clustering using Complete Linkage
+hcluster_comp <- hclust(scale_clusterdata_dist, method = "complete" )
+# Hierarchical clustering using average Linkage
+hcluster_avg <- hclust(scale_clusterdata_dist, method = "average" )
+# Hierarchical clustering using ward.D Linkage
+hcluster_ward <- hclust(scale_clusterdata_dist, method = "ward.D" )
+
+## plotting dendrograms
+par(mfrow = c(2,2))
+plot(hcluster_sing, cex = 0.6, hang = -1, main = 'Single')
+plot(hcluster_comp, cex = 0.6, hang = -1, main = 'Complete')
+plot(hcluster_avg, cex = 0.6, hang = -1, main = 'Average')
+plot(hcluster_ward, cex = 0.6, hang = -1, main = 'Ward.D')
+
+## Evaluating number of clusters
+tst1 <-  fviz_nbclust(x=scale(cbind(st_coordinates(clusterdata), clusterdata$elev_m)), FUNcluster= hcut, method = "wss") 
+tst2 <-  fviz_nbclust(x=scale(cbind(st_coordinates(clusterdata), clusterdata$elev_m)), FUNcluster= hcut, method = "silhouette") 
+tst3 <-  fviz_nbclust(x=scale(cbind(st_coordinates(clusterdata), clusterdata$elev_m)), FUNcluster= hcut, method = "gap_stat", nboot=10)
+tst1
+tst2
+tst3
+```
+Based on these plots, 4 clusters appears to be an appropriate number of clusters. In the Silhouette chart, the average silhouette width maximizes at 4.
+
+```{r 4d,e}
+### parts D and/or E
+## plotting with fviz_cluster
+hcluster_ward_4k <- cutree(hcluster_ward, k = 4)
+fviz_cluster(list(data = scale(cbind(st_coordinates(clusterdata), clusterdata$elev_m)), cluster = hcluster_ward_4k), main = 'Ward')
+
+## Assigning Clusters back to Original Dataset
+clusterdata$cluster <- as.factor(cutree(hcluster_ward, k = 4))
+summary(clusterdata)
+```
+
+## Question 5. 
+Given the papers by Abas 2008 and Chen et al. 2005 - what conclusions might you make about which clustering level is best? Do these two papers show concordant conclusions? Why or Why not?
+
+Answer:
+The papers both evaluate the effectiveness of hierarchical clustering compared to K-means clustering. Given Abas 2008's conclusions on the performance of hierarchical clustering improving as the value of k increases, it could potentially be reasonable to use a higher level of clustering when working with hierarchical methods. However, given that our dataset for this lab is fairly small, Abas 2008's conclusion about hierarchical clustering showing good results with small datasets means we can probably stick with the level of clustering that I chose in question 4. The 2 papers do show similar general conclusions in that they both describe K-means clustering as demonstrating better performance than hierarchical clustering. Abas 2008 differs largely by taking its conclusions further and describing in greater specificity which method is typically better depending on the size of the dataset someone is working with, with larger datasets typically being better suited to K-means clustering.
+
+## Question 6 - Graduate Students Yes - Undergraduates XC
+
+Using the ClustGeo library evaluate and produce a geographically constrained cluster with the same k that you resolved in Question 4.
+
+```{r}
+## borrowing Ken's function to explore alpha choices
+range.alpha<-seq(0,1,0.1)
+fca <- function(d1,d2,k){
+  tmp <- choicealpha(d1, d2, range.alpha, 
+              k, graph = FALSE)
+}
+
+## preparing data for alpha checking
+clusterdata_geo <- cbind(unlist(lapply(st_geometry(clusterdata),`[`,1)), unlist(lapply(st_geometry(clusterdata),`[`,2)))
+clusterdata_geo_dist <-  get_dist(clusterdata_geo, stand=T)
+
+clusterdata_df <- st_drop_geometry(clusterdata)[,'elev_m']
+clusterdata_df_dist <- get_dist(clusterdata_df, stand=T)
+
+## checking alpha
+alphacheck <- fca(d1=clusterdata_geo_dist, d2=clusterdata_df_dist, k=4)
+plot(alphacheck, norm = TRUE)
+alphacheck$Q
+
+## creating geocluster
+geocluster <- hclustgeo(clusterdata_geo_dist,clusterdata_df_dist, alpha = 0.9)
+plot(geocluster, labels=F)
+
+## assigning clusters back to original data
+geocluster_k4 <- cutree(geocluster,k=4)
+clusterdata$geocluster_k4 <- geocluster_k4
+## plotting clusters
+gcp <- fviz_cluster(list(data = scale(cbind(st_coordinates(clusterdata), clusterdata$elev_m)), cluster = geocluster_k4), main = 'GeoCluster') 
+gcp
+```
+

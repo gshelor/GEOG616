@@ -1,0 +1,170 @@
+---
+title: "GEOG 616 Lab 8"
+author: "Griffin Shelor"
+format: html
+---
+
+```{r setup, include=FALSE}
+setwd("/Users/griffinshelor/Documents/Schoolwork/UNR/GEOG616/Labs/Lab8")
+knitr::opts_chunk$set(echo = TRUE)
+library(rgdal)
+library(gstat)
+library(sf)
+library(terra)
+library(tidyterra)
+library(ggplot2)
+library(ape)
+library(lctools)
+```
+
+## Lab Intro
+
+We are interested in the impacts that undocumented immigrants and other off trail travelers are having on the landscape in the Coronado National Monument in Arizona.  The Monument's southern border is part of the US border with Mexico (and it has a wall) and yet still there is a significant influx of travelers across the border. The park is relatively small and consists of Mountains with a steep sloping East - West canyon down the center, with lowlands to the east.
+
+![Coronado NM](Lab8Data/Coro.png)
+
+## Question 1
+
+Surveys were conducted along randomly placed transects to aid in identifying soil impacts (both soil compression and shear). An index of soil impact ("impact") was calculated at each survey location. Survey data are contained in the shape file "CoroSoilSurveys.shp"
+
+a) Read in the dataset and plot a semivariogram of the impact data using the functions within the gstat library. b) Do the data appear to exhibit spatial autocorrelation? c) Describe the features of the plot upon which you have based your answer.
+
+```{r}
+set.seed(802)
+CoroSoil <- read_sf("Lab8Data/CoroSoilSurveys.shp")
+v1 <- variogram(impact ~1, CoroSoil, cloud=T)
+plot(v1)
+v2 <- variogram(impact ~1, CoroSoil)
+plot(v2, pch = 19, col = 'blue', cex = 1.5, main = 'Soil Impact Variogram')
+```
+The data do appear to exhibit spatial autocorrelation. The points generally indicate that points closer together have less variation. Points further apart exhibit greater variance.
+
+
+## Question 2
+
+Given the scatter of the data in the variogram of Question 1 a log scale may be more appropriate to evaluate the impact data.
+
+a) Create a variogram using the log() of the impact index. b) What are some reasonable estimates for the nugget, range, and sill that we could use to construct a fitted variogram model? c) What variogram model might you select?
+
+```{r}
+set.seed(802)
+v3 <- variogram(log(impact) ~1, CoroSoil, cloud=T)
+plot(v3)
+v4 <- variogram(log(impact) ~1, CoroSoil)
+plot(v4, pch = 19, col = 'blue', cex = 1.5, main = 'Soil Impact Variogram')
+```
+Some reasonable estimates for the nugget could be 0.05, the range could be 1250, and the sill could be 0.35.
+
+I would likely select an exponential model.
+
+
+## Question 3
+
+a) use the vgm function to specify the nugget, range, and sill estimates that you chose in question 2. b) Fit and plot a variogram using an exponential model. c) Show your initial estimates relative to the fitted estimates. d) how do they differ? e) Does the model fit look like a reasonable fit?
+
+
+```{r}
+set.seed(802)
+v4_fit <- fit.variogram(v4, vgm(psill = 0.35, model = "Exp", range = 1250, nugget = 0.05))
+plot(v4, model=v4_fit, main = 'Variogram with Exponential fit')
+v4_fit
+```
+The fitted estimate for the range is much lower than the range I selected. The nugget is similar to what I selected, but is 0.03 lower than my input. The psill is also lower, by about 0.05, but is still somewhat similar to the psill that I selected.
+```{r}
+# v5_fit <- fit.variogram(v4, vgm(psill = 0.3, model = "Exp", range = 600, nugget = 0.02))
+# plot(v4, model=v5_fit, main = 'Variogram with Exponential fit')
+# v5_fit
+```
+Overall, the model does appear to be a reasonable fit. The values differ only slightly aside from the range, but the line largely goes through the center of the points as plotted.
+
+
+## Question 4
+Using the CORO_Slope.tif given in the lab data folder to specify the underlying grid, a) plot the sample locations and the slope. b) Krige the fit model from question 3 using ordinary kriging, and c) plot your result.
+
+```{r}
+set.seed(802)
+coro_slope <- rast("Lab8Data/CORO_Slope.tif")
+CoroSoil_vect <- vect(CoroSoil)
+# plot(coro_slope)
+# points(CoroSoil_vect)
+ggplot() +
+  theme_minimal() +
+  geom_spatraster(data = coro_slope) +
+  scale_fill_terrain_c(direction = -1) +
+  geom_spatvector(data = CoroSoil_vect)
+
+slope_pts <- as.points(coro_slope)
+slope_sf <- st_as_sf(slope_pts)
+# plot(slope_sf)
+# plot(CoroSoil, add = T)
+
+soil_ok <- krige(log(impact) ~ 1, CoroSoil, slope_sf, v4_fit)
+soil_ok_rast <- rasterize(vect(soil_ok),coro_slope,field='var1.pred')
+soil_ok_plot <- ggplot() +
+  theme_minimal() +
+  geom_spatraster(data = soil_ok_rast) +
+  scale_fill_terrain_c(direction = -1) +
+  geom_spatvector(data = CoroSoil_vect)
+soil_ok_plot
+# plot(soil_ok_rast)
+# points(CoroSoil_vect)
+# plot(soil_ok['var1.pred'])
+```
+
+## Question 5
+
+We suspect that slope may contribute to the level of erosion that could occur as the soils on higher slopes tends to create sheer when traversed. a) Add slope to your interpolation model using universal kriging and b) plot your result. c) Did the addition of slope change the prediction of where soils might be most impacted by off trail travel? d) Please describe.
+
+```{r}
+set.seed(802)
+colnames(slope_sf) <- c("slope", "geometry")
+soil_uk <- krige(log(impact) ~ slope, CoroSoil, slope_sf, v4_fit)
+soil_uk_rast <- rasterize(vect(soil_uk),coro_slope,field='var1.pred')
+soil_uk_plot <- ggplot() +
+  theme_minimal() +
+  geom_spatraster(data = soil_uk_rast) +
+  scale_fill_terrain_c(direction = -1) +
+  geom_spatvector(data = CoroSoil_vect)
+## showing ordinary kriging plot for my own reference
+soil_ok_plot
+## showing universal kriging plot
+soil_uk_plot
+# plot(soil_uk['var1.pred'])
+```
+Yes, the addition of slope did change the prediction of where soils might be most impacted by off trail travel. The western and northern edges of the area are described as more likely to be impacted by off trail travel once I added the covariate of slope. The southeast corner remained relatively unlikely to be impacted by off trail travel, as did other areas with lower likelihoods of impact nearer to the center of the study area.
+
+
+## Question 6.
+A recent paper was published on documenting impacts of undocumented immigration on this same area see (Esque et al. 2016 Nat Areas.pdf)
+
+a) What type of spatial analysis did the authors use? b) What are the limitations of the method they chose? c) How do their methods differ from the kriging methods you have used in this lab? d) What other types of disturbances did they measure? e) What would you do differently if you were to re-analyze their data?
+
+Answer:  
+The authors used kernel density estimation to map unauthorized trail and road network point density. The density surface they created was created using a Gaussian kernel density function. One weakness of this method is that it can potentially be subjective since the relative detail of the smoothing relies on a smoothing factor provided by the user. Kernel density estimation differs from kriging in that KDE calculates point density across a surface whereas kriging interpolates some z value associated with the points. The other types of disturbances that the authors measured included severity of soil disturbance and an analysis of the relationship between soil type and vulnerability to compaction and erosion. If I were to re-analyze their data, I would consider applying kriging to the trail cross-section topography analysis instead of the penalized spline analysis as kriging is a common method used in geological studies and thus likely has a good record of performance in similar analyses. Kriging could also potentially be better applied to the soil vulnerability analysis instead of relying on expert opinion since the vulnerability classes assigned by the expert opinion did not end up having a statistically significant relationship with the soil displacement.
+
+## Question 7 
+
+Grad students yes - UG Extra credit
+
+Create a GLS model of log(impact) ~slope using your variogram model and summarize the output. Is there a significant relationship with slope? What is it?
+
+```{r}
+library(sfheaders)
+library(nlme)
+CoroSoil_df <- sf_to_df(CoroSoil, fill = TRUE)
+
+prop_nugget <- v4_fit[1,"psill"]/sum(v4_fit[,"psill"])
+impact_gls <- gls(model=log(impact) ~ slope,
+data=CoroSoil_df,
+correlation=corSpher(
+form=~x + y, # indicating smooting over our xy
+nugget=TRUE, 
+value=c(v4_fit[2,"range"], prop_nugget),## parameter estimates for our covariance due to SAutocorrelation
+))
+
+summary(impact_gls)
+impact_gls
+```
+Since the p-value given by summary(impact_gls) is below 0.05, there is a statistically significant relationship between slope and log(impact). The parameter estimate is positive, which indicates that as slope increases, log(impact) increases as well. The parameter estimate is also close to 0, so the effect size may not be very large, but the relationship is nonetheless statistically significant.
+
+
